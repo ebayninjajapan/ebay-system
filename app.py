@@ -17,3 +17,4 @@ try:
     st.success("データベース接続成功！")
 except Exception as e:
     st.error(f"接続失敗: {e}")
+supabase
