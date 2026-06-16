@@ -3,7 +3,7 @@ from supabase import create_client
 
 # 【重要】ここを自分の情報に書き換えてください
 SUPABASE_URL = "https://fgfxhoolclbsampisebt.supabase.co"
-SUPABASE_KEY = "ここにanon publicキーを貼り付け"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnZnhob29sY2xic2FtcGlzZWJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MDg0OTYsImV4cCI6MjA5NzA4NDQ5Nn0.9gQZOiWP7ljPLyIfTim9WDw2M17Tn0UuSWgZgR422yI"
 
 # 接続作成
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
