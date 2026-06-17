@@ -18,20 +18,12 @@ GAS_URL = "https://script.google.com/macros/s/AKfycbxrIQJy2O2T2CeLXddfbO2GQfW1fL
 # ─────────────────────────────────────────
 # データ読み書き処理 (Googleスプレッドシート連携)
 # ─────────────────────────────────────────
-def load_data():
-    try:
-        response = requests.get(GAS_URL, timeout=10)
-        data = response.json()
-        if len(data) > 1:
-            df = pd.DataFrame(data[1:], columns=data[0])
-            return df
-    except:
-        pass
-    return pd.DataFrame(columns=["ID", "日付", "担当者", "商品名", "仕入(円)", "eBay相場(ドル)", "売値(ドル)", "ステータス", "発送サイズ", "確定レート", "メモ"])
-
 def save_to_sheet(df):
-    data = [df.columns.tolist()] + df.values.tolist()
-    requests.post(GAS_URL, json={'action': 'write', 'values': df.values.tolist()})
+    # データフレームをリスト形式に変換
+    data_values = df.values.tolist()
+    # POSTリクエストで値を送信（GAS側での受け取り形式に合わせる）
+    response = requests.post(GAS_URL, json={'values': data_values})
+    return response
 
 @st.cache_data(ttl=300)
 def get_rate():
