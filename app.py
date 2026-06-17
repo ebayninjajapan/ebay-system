@@ -1,38 +1,27 @@
 import streamlit as st
 import pandas as pd
 import requests
-import json
+import os
+import re
+import time
 from datetime import datetime
 import urllib.parse
 from bs4 import BeautifulSoup
-import time
+from supabase import create_client
 
-# ─────────────────────────────────────────
-# 設定
-# ─────────────────────────────────────────
+# Supabase接続設定
+url = "https://fgfxhoolclbsampisebt.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnZnhob29sY2xic2FtcGlzZWJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MDg0OTYsImV4cCI6MjA5NzA4NDQ5Nn0.9gQZOiWP7ljPLyIfTim9WDw2M17Tn0UuSWgZgR422yI"
+supabase = create_client(url, key)
+
 st.set_page_config(layout="wide", page_title="eBay 仕入れ管理", page_icon="📦")
 
-# 【重要】ここに先ほどのGASのウェブアプリURLを貼り付けてください
-GAS_URL = "https://script.google.com/macros/s/AKfycbxrIQJy2O2T2CeLXddfbO2GQfW1fLG7uIBfTOzAXEdWRlf6YqaskLsMlasEF5EaIQ1o/exec"
+DB_FILE = "l_database.csv"
+WATCH_FILE = "watch_list.csv"
 
 # ─────────────────────────────────────────
-# データ読み書き処理 (Googleスプレッドシート連携)
+# データ取得・ロード
 # ─────────────────────────────────────────
-def load_data():
-    try:
-        response = requests.get(GAS_URL, timeout=10)
-        data = response.json()
-        if len(data) > 1:
-            df = pd.DataFrame(data[1:], columns=data[0])
-            return df
-    except:
-        pass
-    return pd.DataFrame(columns=["ID", "日付", "担当者", "商品名", "仕入(円)", "eBay相場(ドル)", "売値(ドル)", "ステータス", "発送サイズ", "確定レート", "メモ"])
-
-def save_to_sheet(df):
-    data = [df.columns.tolist()] + df.values.tolist()
-    requests.post(GAS_URL, json={'action': 'write', 'values': df.values.tolist()})
-
 @st.cache_data(ttl=300)
 def get_rate():
     try:
@@ -40,23 +29,76 @@ def get_rate():
     except:
         return 155.0
 
-# ─────────────────────────────────────────
-# (以下、これまでのロジックを維持)
-# ─────────────────────────────────────────
-# ※WATCH_FILE周りは一旦CSVのままでも動きますが、本格的に移行するならここも同様にGAS対応可能です
+def load_data():
+    if os.path.exists(DB_FILE):
+        df = pd.read_csv(DB_FILE)
+        for col in ["ID", "仕入(円)", "eBay相場(ドル)", "売値(ドル)", "確定レート"]:
+            if col not in df.columns:
+                df[col] = 0.0
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+        if "メモ" not in df.columns:
+            df["メモ"] = ""
+        df["ID"] = df["ID"].astype(int)
+        return df
+    return pd.DataFrame(columns=[
+        "ID", "日付", "担当者", "商品名", "仕入(円)",
+        "eBay相場(ドル)", "売値(ドル)", "ステータス",
+        "発送サイズ", "確定レート", "メモ"
+    ])
+
+def load_watch_list():
+    if os.path.exists(WATCH_FILE):
+        try:
+            w = pd.read_csv(WATCH_FILE)
+            # 列名の重複防止・リネーム処理
+            if "eBay最安値(ドル)" in w.columns and "eBay相場(ドル)" not in w.columns:
+                w = w.rename(columns={"eBay最安値(ドル)": "eBay相場(ドル)"})
+            elif "eBay最安値(ドル)" in w.columns and "eBay相場(ドル)" in w.columns:
+                w = w.drop(columns=["eBay最安値(ドル)"])
+                
+            # 必要な列が確実に1つずつ存在するように調整
+            for col in ["狙う仕入れ価格", "前回最安値", "eBay相場(ドル)"]:
+                if col not in w.columns:
+                    w[col] = 0.0
+                w[col] = pd.to_numeric(w[col], errors="coerce").fillna(0.0)
+            if "状態" not in w.columns:
+                w["状態"] = "🆕 未チェック"
+            
+            # 重複列を完全に排除して必要な列のみを抽出
+            w = w.loc[:, ~w.columns.duplicated()]
+            return w[["商品名", "狙う仕入れ価格", "前回最安値", "eBay相場(ドル)", "状態"]]
+        except:
+            pass
+    return pd.DataFrame(columns=["商品名", "狙う仕入れ価格", "前回最安値", "eBay相場(ドル)", "状態"])
+
 
 def check_yahoo_auctions_html(keyword):
     encoded_kw = urllib.parse.quote(keyword)
     search_url = f"https://auctions.yahoo.co.jp/search/search?p={encoded_kw}&va={encoded_kw}&is_all=1&exflg=1&b=1&n=50&s1=cbids&o1=a&wrmode=2"
-    headers = {"User-Agent": "Mozilla/5.0"}
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "ja,en-US;q=0.9,en;q=0.8"
+    }
+    
     try:
         response = requests.get(search_url, headers=headers, timeout=10)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
-            prices = [int(s) for elem in soup.find_all(class_=re.compile("Product__priceValue")) 
-                      for s in re.findall(r'\d+', elem.get_text().replace(',', '')) if int(s) >= 100]
-            return min(prices) if prices else None
-    except: pass
+            price_elements = soup.find_all(class_=re.compile("Product__priceValue"))
+            
+            prices = []
+            for elem in price_elements:
+                text = elem.get_text()
+                clean_text = text.replace(',', '').replace('円', '').strip()
+                nums = [int(s) for s in re.findall(r'\d+', clean_text)]
+                for num in nums:
+                    if num >= 100:
+                        prices.append(num)
+            if prices:
+                return min(prices)
+    except:
+        pass
     return None
 
 # ─────────────────────────────────────────
@@ -93,36 +135,33 @@ with col_h2:
 # データ前処理と計算
 # ─────────────────────────────────────────
 df = load_data()
-if not df.empty:
-    df["日付"] = pd.to_datetime(df["日付"], errors="coerce")
-    df["使用レート"] = df["確定レート"].replace(0, current_rate)
+df["日付"] = pd.to_datetime(df["日付"], errors="coerce")
 
-    df["純利益(円)"] = (
-        df["eBay相場(ドル)"] * 0.85 * df["使用レート"]
-        - df["仕入(円)"]
-        - df["発送サイズ"].map(SIZE_COSTS).fillna(2000)
-    ).astype(int)
-    df["売上換算(円)"] = (df["売値(ドル)"] * df["使用レート"]).astype(int)
+df["使用レート"] = df["確定レート"].replace(0, current_rate)
 
-    now_month = datetime.now().month
-    this_month = df[df["日付"].dt.month == now_month]
-    sold = this_month[this_month["ステータス"].isin(["販売済み", "発送済"])]
-else:
-    this_month = pd.DataFrame()
-    sold = pd.DataFrame()
+df["純利益(円)"] = (
+    df["eBay相場(ドル)"] * 0.85 * df["使用レート"]
+    - df["仕入(円)"]
+    - df["発送サイズ"].map(SIZE_COSTS).fillna(2000)
+).astype(int)
+df["売上換算(円)"] = (df["売値(ドル)"] * df["使用レート"]).astype(int)
+
+now_month = datetime.now().month
+this_month = df[df["日付"].dt.month == now_month]
+sold = this_month[this_month["ステータス"].isin(["販売済み", "発送済"])]
 
 if "w_df" not in st.session_state:
-    st.session_state.w_df = pd.DataFrame(columns=["商品名", "狙う仕入れ価格", "前回最安値", "eBay相場(ドル)", "状態"])
+    st.session_state.w_df = load_watch_list()
 
 # ─────────────────────────────────────────
 # ダッシュボード
 # ─────────────────────────────────────────
 st.subheader("📈 今月の実績")
 m1, m2, m3, m4 = st.columns(4)
-m1.metric("今月 仕入れ合計", f"¥{this_month['仕入(円)'].sum() if not this_month.empty else 0:,.0f}")
-m2.metric("今月 売上合計", f"¥{sold['売値(ドル)'].sum() * current_rate if not sold.empty else 0:,.0f}")
-m3.metric("今月 確定利益", f"¥{sold['純利益(円)'].sum() if not sold.empty else 0:,.0f}")
-m4.metric("在庫件数（掲載中）", len(df[df["ステータス"] == "掲載中"]) if not df.empty else 0)
+m1.metric("今月 仕入れ合計", f"¥{this_month['仕入(円)'].sum():,.0f}")
+m2.metric("今月 売上合計", f"¥{sold['売値(ドル)'].sum() * current_rate:,.0f}")
+m3.metric("今月 確定利益", f"¥{sold['純利益(円)'].sum():,.0f}")
+m4.metric("在庫件数（掲載中）", len(df[df["ステータス"] == "掲載中"]))
 
 st.divider()
 
@@ -145,16 +184,15 @@ with tab1:
         search_word = st.text_input("商品名で検索")
 
     df_show = df.copy()
-    if not df_show.empty:
-        if filter_status != "すべて":
-            df_show = df_show[df_show["ステータス"] == filter_status]
-        if filter_user != "すべて":
-            df_show = df_show[df_show["担当者"] == filter_user]
-        if search_word:
-            df_show = df_show[df_show["商品名"].str.contains(search_word, na=False)]
+    if filter_status != "すべて":
+        df_show = df_show[df_show["ステータス"] == filter_status]
+    if filter_user != "すべて":
+        df_show = df_show[df_show["担当者"] == filter_user]
+    if search_word:
+        df_show = df_show[df_show["商品名"].str.contains(search_word, na=False)]
 
-        if "日付" in df_show.columns:
-            df_show["日付"] = df_show["日付"].dt.strftime("%Y-%m-%d")
+    if not df_show.empty and "日付" in df_show.columns:
+        df_show["日付"] = df_show["日付"].dt.strftime("%Y-%m-%d")
 
     df_show.insert(0, "削除", False)
     base_columns = ["ID", "日付", "担当者", "商品名", "仕入(円)", "eBay相場(ドル)", "売値(ドル)", "ステータス", "発送サイズ", "確定レート", "メモ"]
@@ -171,25 +209,39 @@ with tab1:
         width="stretch", hide_index=True, num_rows="dynamic", key="main_editor"
     )
 
-# TAB 1 の保存ボタン処理を以下に差し替えてください
     if st.button("💾 変更を保存", type="primary"):
-        saved_df = edited_df[edited_df["削除"] == False].copy()
-        
-        # ID付与処理
-        df_latest = load_data()
-        current_max_id = int(df_latest["ID"].max()) if not df_latest.empty else 0
-        
-        for i, row in saved_df.iterrows():
-            if pd.isna(row["ID"]) or row["ID"] == 0:
-                current_max_id += 1
-                saved_df.at[i, "ID"] = current_max_id
-                saved_df.at[i, "日付"] = datetime.now().strftime("%Y-%m-%d")
-        
-        # スプレッドシートへ保存
-        save_to_sheet(saved_df)
-        st.success("✅ スプレッドシートに保存しました！")
-        st.rerun()
+        saved_edited = edited_df[edited_df["削除"] == False].copy()
+        new_rows_list = []
+        updated_ids = set()
 
+        for _, row in saved_edited.iterrows():
+            pid = row.get("ID", 0)
+            if pd.isna(pid) or pid == 0 or int(pid) not in df["ID"].values:
+                next_id = int(df["ID"].max() + 1) if not df.empty else 1
+                while next_id in updated_ids: next_id += 1
+                row["ID"] = next_id
+                row["日付"] = datetime.now().strftime("%Y-%m-%d") if pd.isna(row.get("日付")) else row["日付"]
+                new_dict = {col: row.get(col, "") for col in base_columns}
+                if new_dict["ステータス"] in ["販売済み", "発送済"] and (pd.isna(new_dict["確定レート"]) or new_dict["確定レート"] == 0):
+                    new_dict["確定レート"] = current_rate
+                new_rows_list.append(new_dict)
+                updated_ids.add(next_id)
+            else:
+                pid = int(pid)
+                updated_ids.add(pid)
+                if row["ステータス"] in ["販売済み", "発送済"] and row["確定レート"] == 0:
+                    row["確定レート"] = current_rate
+                for col in base_columns:
+                    if col in row: df.loc[df["ID"] == pid, col] = row[col]
+
+        visible_ids = set(df_show["ID"].dropna().astype(int).values)
+        deleted_ids = visible_ids - updated_ids
+        if deleted_ids: df = df[~df["ID"].isin(deleted_ids)]
+        if new_rows_list: df = pd.concat([df, pd.DataFrame(new_rows_list)], ignore_index=True)
+
+        df[base_columns].to_csv(DB_FILE, index=False)
+        st.success("✅ 変更を保存しました！")
+        st.rerun()
 
 # TAB 2
 with tab2:
