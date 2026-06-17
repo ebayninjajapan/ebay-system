@@ -39,13 +39,13 @@ with tab2:
     st.subheader("🔍 eBay利益計算・ハイブリッドツール")
     current_rate = get_rate()
     
-    # 以前のHTML/JSを損なわないよう、Pythonのf-stringエスケープ処理を適用した完全版
-    html_template = f"""
+    # 修正済みHTMLテンプレート（波括弧を二重化してPythonの誤解を回避）
+    html_calc_template = f"""
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
 <style>
 :root{{--bg:#fff;--card:#fff;--border:rgba(26,59,40,.09);--text:#1a1a1a;--sub:#5a6b5e;--dim:#9ca89e;--accent:#B79740;--teal:#1A5C3A;--teal2:#2D7A4F;--pp:#1A7A42;--pn:#C62828;--ibg:#F5F7F5;--iborder:rgba(26,59,40,.15);--r:14px;--rs:8px;}}
-*{box-sizing:border-box;margin:0;padding:0;}
+*{{box-sizing:border-box;margin:0;padding:0;}}
 body{{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);padding:10px 12px 280px;}}
 .sec{{background:var(--card);margin:8px 0;border-radius:var(--r);padding:14px;border:1px solid var(--border);}}
 .lbl{{display:block;font-size:11px;font-weight:600;color:var(--sub);margin-bottom:4px;}}
@@ -142,7 +142,7 @@ input,select{{width:100%;padding:10px 11px;border:1px solid var(--iborder);borde
 </script>
 </body></html>
 """
-    st.html(html_template)
+    st.html(html_calc_template)
 
 with tab5:
     st.info("監視機能：移植準備中")
