@@ -39,7 +39,7 @@ with tab2:
     st.subheader("🔍 eBay利益計算・ハイブリッドツール")
     current_rate = get_rate()
     
-    # 修正済みHTMLテンプレート（波括弧を二重化してPythonの誤解を回避）
+    # CSS/JS内の波括弧を{{ }}にエスケープし、Pythonの誤動作を防いでいます
     html_calc_template = f"""
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
