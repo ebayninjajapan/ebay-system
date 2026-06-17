@@ -340,6 +340,8 @@ input,select{width:100%;padding:10px 11px;border:1px solid var(--iborder);border
 
 # TAB 3
 with tab3:
+# TAB 3 を以下のように書き換えてください
+with tab3:
     st.subheader("📥 新規仕入れ登録")
     with st.form("add_form", clear_on_submit=True):
         name   = st.text_input("商品名 *")
@@ -348,14 +350,31 @@ with tab3:
         size   = st.selectbox("発送サイズ", SIZE_OPTIONS)
         status = st.selectbox("初期ステータス", STATUS_OPTIONS)
         submitted = st.form_submit_button("✅ 登録する")
+        
         if submitted and name.strip():
-            next_id = int(df["ID"].max() + 1) if not df.empty else 1
+            # 現在のデータを取得
+            df_latest = load_data()
+            next_id = int(df_latest["ID"].max() + 1) if not df_latest.empty else 1
+            
+            # 新しい行を作成
             new_row = pd.DataFrame([{
-                "ID": next_id, "日付": datetime.now().strftime("%Y-%m-%d"), "担当者": user,
-                "商品名": name.strip(), "仕入(円)": cost, "eBay相場(ドル)": 0, "売値(ドル)": 0,
-                "発送サイズ": size, "ステータス": status, "確定レート": 0, "メモ": ""
+                "ID": next_id, 
+                "日付": datetime.now().strftime("%Y-%m-%d"), 
+                "担当者": user,
+                "商品名": name.strip(), 
+                "仕入(円)": cost, 
+                "eBay相場(ドル)": 0, 
+                "売値(ドル)": 0,
+                "ステータス": status, 
+                "発送サイズ": size, 
+                "確定レート": 0, 
+                "メモ": ""
             }])
-            pd.concat([df[base_columns], new_row], ignore_index=True).to_csv(DB_FILE, index=False)
+            
+            # 既存データと結合して保存
+            updated_df = pd.concat([df_latest, new_row], ignore_index=True)
+            save_to_sheet(updated_df)
+            
             st.success("登録しました！")
             st.rerun()
 
