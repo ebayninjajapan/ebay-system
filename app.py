@@ -340,8 +340,6 @@ input,select{width:100%;padding:10px 11px;border:1px solid var(--iborder);border
 
 # TAB 3
 with tab3:
-# TAB 3 を以下のように書き換えてください
-with tab3:
     st.subheader("📥 新規仕入れ登録")
     with st.form("add_form", clear_on_submit=True):
         name   = st.text_input("商品名 *")
@@ -377,7 +375,6 @@ with tab3:
             
             st.success("登録しました！")
             st.rerun()
-
 # TAB 4
 with tab4:
     st.subheader("💾 データダウンロード")
