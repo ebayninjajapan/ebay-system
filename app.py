@@ -32,7 +32,23 @@ with tab1:
 
 # 2. 利益計算
 with tab2:
-    st.info("ここに以前の利益計算ツールを移植します")
+    st.subheader("🔍 eBay利益計算・ハイブリッドツール")
+    
+    # 為替レートの取得
+    def get_rate():
+        try:
+            return float(requests.get("https://open.er-api.com/v6/latest/USD", timeout=3).json()["rates"]["JPY"])
+        except:
+            return 155.0
+
+    current_rate = get_rate()
+    
+    html_calc_template = """
+    """
+    
+    # "__CURRENT_RATE__" を現在のレートに置き換えて表示
+    html_calc = html_calc_template.replace("__CURRENT_RATE__", f"{current_rate:.2f}")
+    st.html(html_calc)
 
 # 3. 新規登録
 with tab3:
