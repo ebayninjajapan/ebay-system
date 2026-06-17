@@ -39,7 +39,7 @@ with tab2:
     st.subheader("🔍 eBay利益計算・ハイブリッドツール")
     current_rate = get_rate()
     
-    # HTML内のダブルクォーテーション衝突を回避するために一括処理したコード
+    # Pythonのf-stringを使うため、JS内の{}を{{}}に二重化してエスケープしています
     html_content = f"""
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
@@ -49,8 +49,7 @@ body{{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--b
 .sec{{background:var(--card);margin:8px 0;border-radius:var(--r);padding:14px;border:1px solid var(--border);}}
 .lbl{{display:block;font-size:11px;font-weight:600;color:var(--sub);margin-bottom:4px;}}
 input{{width:100%;padding:10px 11px;border:1px solid var(--iborder);border-radius:var(--rs);font-size:15px;background:var(--ibg);}}
-.trans-box{{display:flex;gap:6px;align-items:stretch;}}
-.trans{{flex:1;background:rgba(26,92,58,.06);padding:10px;border-radius:var(--rs);font-size:13px;min-height:36px;display:flex;align-items:center;color:#1A5C3A;font-weight:700;word-break:break-all;}}
+.trans{{background:rgba(26,92,58,.06);padding:10px;border-radius:var(--rs);font-size:13px;min-height:36px;display:flex;align-items:center;color:#1A5C3A;font-weight:700;word-break:break-all;}}
 .btn-search{{flex:1;text-align:center;padding:11px 5px;border-radius:var(--rs);text-decoration:none;font-size:12px;font-weight:800;color:#fff;display:block;margin:4px;}}
 .off{{opacity:.3;pointer-events:none;background:#ccc !important;}}
 .panel{{position:fixed;bottom:0;left:0;right:0;background:#fafbf9;border-top:1px solid var(--border);padding:11px 14px;z-index:99;}}
@@ -78,11 +77,11 @@ input{{width:100%;padding:10px 11px;border:1px solid var(--iborder);border-radiu
 (function(){{
   const $=id=>document.getElementById(id);
   const num=id=>parseFloat(($(id).value||'').replace(/,/g,''))||0;
-  const trans=async(q,pair,resId)=>{
+  const trans=async(q,pair,resId)=>{{
     const r=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(q)+'&langpair='+pair);
     const d=await r.json();
     if(d.responseData)$(resId).textContent=d.responseData.translatedText;
-  };
+  }};
   $('jaInput').addEventListener('input',e=>{{
     trans(e.target.value,'ja|en','jaToEnResult');
     $('lMercari').href='https://jp.mercari.com/search?keyword='+encodeURIComponent(e.target.value); $('lMercari').classList.remove('off');
